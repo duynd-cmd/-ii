@@ -34,7 +34,8 @@ const overviewSchema = new mongoose.Schema({
   examDate: {
     type: String,
     required: true
-  }
+  },
+  mainTopics: [String]
 });
 
 const studyPlanSchema = new mongoose.Schema({
