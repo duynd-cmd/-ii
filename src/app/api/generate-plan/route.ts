@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const { subject, examDate } = await req.json();
     
     // Call Express middleware for plan generation
-    const response = await fetch(`${process.env.AI_MIDDLEWARE_URL}/api/plan`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_AI_MIDDLEWARE_URL}/api/plan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject, examDate })

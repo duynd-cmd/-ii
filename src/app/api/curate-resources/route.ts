@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     const { subject } = await req.json();
     
     // Call Express middleware
-    const response = await fetch(`${process.env.AI_MIDDLEWARE_URL}/api/curate`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_AI_MIDDLEWARE_URL}/api/curate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject })

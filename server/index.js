@@ -15,10 +15,7 @@ const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
 const searchCache = new Map();
 
-app.use(cors({
-  origin: process.env.NEXT_PUBLIC_APP_URL,
-  credentials: true
-}));
+app.use(cors({}))
 app.use(express.json());
 
 // Enhanced Tavily search function with advanced filtering
@@ -261,7 +258,7 @@ app.post('/api/curate', async (req, res) => {
   try {
     const { subject } = req.body;
     const searchData = await searchTavily(subject);
-    
+
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
     const relevantContent = searchData.results.map(result => ({
       title: result.title,
@@ -297,7 +294,11 @@ Return in JSON format:
     res.json(resources);
   } catch (error) {
     console.error('Error:', error);
-    res.status(500).json({ error: 'Failed to curate resources' });
+    if (error.name === 'AbortError') {
+      res.status(504).json({ error: 'Request timeout' });
+    } else {
+      res.status(500).json({ error: 'Failed to curate resources' });
+    }
   }
 });
 
