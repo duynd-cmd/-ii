@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,14 @@ import {
   ZoomOut,
   RotateCw,
   Maximize2,
-  Menu
+  Menu,
+  Volume2
 } from "lucide-react";
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import Link from 'next/link';
 import { cn } from "@/lib/utils";
-import React from 'react';
+import { AudioPlayer } from "@/components/scriba/AudioPlayer";
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -59,7 +60,7 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
     lastRotation: 0
   });
   const contentRef = useRef<HTMLDivElement>(null);
-  
+   
   // State that affects rendering
   const [viewState, setViewState] = useState({
     numPages: 0,
@@ -78,6 +79,11 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
     pdfData: null as string | null,
     title: ''
   });
+
+  // --- Scriba / Audio Player State ---
+  const [showPlayer, setShowPlayer] = useState(false);
+  const [pdfText, setPdfText] = useState("");
+  // ----------------------------------
 
   // Add new state for page loading
   const [isPageLoading, setIsPageLoading] = useState(false);
@@ -153,6 +159,12 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
       }
 
       setDocumentData({ pdfData: data.data, title: data.title });
+
+      // Capture text content for the audio reader
+      // Fallback logic in case the field name varies
+      const textContent = data.content || data.text || data.extractedText || "";
+      setPdfText(textContent);
+
       setUiState(prev => ({ ...prev, error: null }));
     } catch (err) {
       console.error('Error fetching PDF:', err);
@@ -264,6 +276,17 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
           </h2>
         </div>
         <div className="flex items-center gap-2">
+          {/* Mobile Read Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowPlayer(true)}
+            className="lg:hidden"
+            title="Read Aloud"
+          >
+            <Volume2 className="h-4 w-4" />
+          </Button>
+
           <Button
             variant="ghost"
             size="sm"
@@ -418,6 +441,18 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
           >
             <RotateCw className="h-4 w-4" />
           </Button>
+
+          {/* Read PDF Button */}
+          <div className="border-l border-black pl-2 ml-2">
+             <Button
+              onClick={() => setShowPlayer(true)}
+              size="sm"
+              className="bg-[#c1ff72] text-black border-2 border-black hover:bg-[#b0ef63] font-semibold gap-2"
+            >
+              <Volume2 className="h-4 w-4" />
+              Read PDF
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -493,6 +528,14 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
           )}
         </div>
       </ScrollArea>
+
+      {/* Audio Player Component */}
+      {showPlayer && (
+        <AudioPlayer 
+          text={pdfText || "Text content not found in this PDF."} 
+          onClose={() => setShowPlayer(false)} 
+        />
+      )}
     </div>
   );
-} 
+}
