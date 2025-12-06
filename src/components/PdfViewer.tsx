@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Document, Page, pdfjs, PDFDocumentProxy, PDFPageProxy, TextItem } from 'react-pdf';
+import { Document, Page, pdfjs, PDFDocumentProxy, TextItem } from 'react-pdf';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import PacmanLoader from 'react-spinners/PacmanLoader';
@@ -36,7 +36,7 @@ function base64ToBuffer(base64String: string): Uint8Array {
   return buffer;
 }
 
-// FIX: Removed custom interfaces and now rely on types exported by 'react-pdf' (PDFDocumentProxy, PDFPageProxy, TextItem)
+// FIX: Removed custom interfaces and now rely on types exported by 'react-pdf' (PDFDocumentProxy, TextItem)
 
 interface PdfViewerProps {
   documentId: string;
@@ -46,6 +46,9 @@ interface PdfViewerProps {
 
 const MemoizedPage = React.memo(Page);
 const MemoizedDocument = React.memo(Document);
+
+// Define a minimal item type based on PDFJS TextItem structure for filtering
+type PossibleTextItem = { str?: string } | null;
 
 export default function PdfViewer({ documentId, currentPage, onPageChange }: PdfViewerProps) {
   const touchRef = useRef({
@@ -103,9 +106,11 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
           
-          // FIX: Filter items to only include TextItems that have the 'str' property
+          // FIX: Use type predicate to filter items that definitely contain the 'str' property
           const pageText = textContent.items
-            .filter((item: any): item is TextItem => !!item && typeof item === 'object' && 'str' in item)
+            .filter((item: PossibleTextItem): item is TextItem => 
+               !!item && typeof item === 'object' && 'str' in item && typeof item.str === 'string'
+            )
             .map((item: TextItem) => item.str)
             .join(' ');
             
