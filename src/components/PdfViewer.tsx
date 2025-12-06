@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
+import { Document, Page, pdfjs, PDFDocumentProxy, PDFPageProxy, TextItem } from 'react-pdf';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import PacmanLoader from 'react-spinners/PacmanLoader';
@@ -36,21 +36,8 @@ function base64ToBuffer(base64String: string): Uint8Array {
   return buffer;
 }
 
-// Define explicit types to resolve Next.js compilation errors
+// FIX: Removed custom interfaces and now rely on types exported by 'react-pdf' (PDFDocumentProxy, PDFPageProxy, TextItem)
 
-// Helper type for TextContent items that have the 'str' property
-interface TextItem {
-  str: string;
-}
-
-// Loosen the return type to match the library's return object structure
-interface PdfPage {
-  getTextContent: () => Promise<{ items: (TextItem | any)[] }>; // Using 'any' as a fallback for internal TextMarkedContent types
-}
-interface PdfDocumentProxy {
-  numPages: number;
-  getPage: (pageIndex: number) => Promise<PdfPage>;
-}
 interface PdfViewerProps {
   documentId: string;
   currentPage: number;
@@ -98,7 +85,7 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
   const pdfDimensionsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   // --- CRITICAL FIX: Extract Text in Browser ---
-  const onDocumentLoadSuccess = useCallback(async (pdf: PdfDocumentProxy) => {
+  const onDocumentLoadSuccess = useCallback(async (pdf: PDFDocumentProxy) => {
     setViewState(prev => ({ ...prev, numPages: pdf.numPages }));
     setUiState(prev => ({ ...prev, error: null }));
 
@@ -116,10 +103,10 @@ export default function PdfViewer({ documentId, currentPage, onPageChange }: Pdf
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
           
-          // FIX: Filter items to only include those with the 'str' property
+          // FIX: Filter items to only include TextItems that have the 'str' property
           const pageText = textContent.items
-            .filter((item): item is TextItem => !!item && typeof item === 'object' && 'str' in item)
-            .map(item => item.str)
+            .filter((item: any): item is TextItem => !!item && typeof item === 'object' && 'str' in item)
+            .map((item: TextItem) => item.str)
             .join(' ');
             
           fullText += pageText + "\n\n";
