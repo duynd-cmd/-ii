@@ -24,14 +24,20 @@ interface ChatInterfaceProps {
   messages: Message[];
   loading: boolean;
   onSubmit: (content: string) => void;
+  initialInput?: string;
+  autoFocusInput?: boolean;
+  onInputChange?: (value: string) => void;
 }
 
 export default function ChatInterface({
   messages,
   loading,
-  onSubmit
+  onSubmit,
+  initialInput = '',
+  autoFocusInput = true,
+  onInputChange
 }: ChatInterfaceProps) {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialInput);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -42,8 +48,13 @@ export default function ChatInterface({
 
   // Focus input on mount
   useEffect(() => {
+    if (!autoFocusInput) return;
     inputRef.current?.focus();
-  }, []);
+  }, [autoFocusInput]);
+
+  useEffect(() => {
+    setInput(initialInput);
+  }, [initialInput]);
 
   const formatTimestamp = (date?: Date) => {
     if (!date) return '';
@@ -60,6 +71,11 @@ export default function ChatInterface({
     
     onSubmit(input.trim());
     setInput('');
+  };
+
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    onInputChange?.(value);
   };
 
   return (
@@ -138,7 +154,7 @@ export default function ChatInterface({
           <Input
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => handleInputChange(e.target.value)}
             placeholder="Ask a question..."
             disabled={loading}
             className="flex-1 h-12 text-base px-4 rounded-full border-2 focus-visible:ring-2"

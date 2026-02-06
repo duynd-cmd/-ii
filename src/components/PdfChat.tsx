@@ -9,6 +9,14 @@ import PacmanLoader from 'react-spinners/PacmanLoader';
 import { Button } from "@/components/ui/button";
 import { FileText, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  loadLongTermMemory,
+  loadSessionMemory,
+  saveLongTermMemory,
+  saveSessionMemory,
+  updatePromptMemory,
+  type UserLongTermMemory,
+} from '@/lib/userMemory';
 
 interface Source {
   page: number;
@@ -44,6 +52,8 @@ export default function PdfChat({ documentId }: PdfChatProps) {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [activeView, setActiveView] = useState<'pdf' | 'chat'>('pdf');
+  const [savedMemory, setSavedMemory] = useState<UserLongTermMemory | null>(null);
+  const [draftPrompt, setDraftPrompt] = useState('');
   const { toast } = useToast();
   const { data: session } = useSession();
 
@@ -56,6 +66,53 @@ export default function PdfChat({ documentId }: PdfChatProps) {
     />
   ), [documentId, currentPage]);
 
+  // Load per-user memory (long-term + session) for this specific document.
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    const longTermMemory = loadLongTermMemory(userId, documentId);
+    const sessionMemory = loadSessionMemory(userId, documentId);
+
+    setSavedMemory(longTermMemory);
+    setActiveView(longTermMemory.preferences.activeView);
+    setCurrentPage(longTermMemory.preferences.lastVisitedPage);
+    setDraftPrompt(sessionMemory.draftPrompt);
+  }, [documentId, session?.user?.id]);
+
+  // Keep view/page preferences updated in long-term storage.
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    setSavedMemory((previousMemory) => {
+      if (!previousMemory) return previousMemory;
+
+      const nextMemory: UserLongTermMemory = {
+        ...previousMemory,
+        preferences: {
+          ...previousMemory.preferences,
+          activeView,
+          lastVisitedPage: currentPage,
+        },
+      };
+
+      saveLongTermMemory(userId, documentId, nextMemory);
+      return nextMemory;
+    });
+  }, [activeView, currentPage, documentId, session?.user?.id]);
+
+  // Save temporary draft state in session-only storage.
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    saveSessionMemory(userId, documentId, {
+      draftPrompt,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [documentId, draftPrompt, session?.user?.id]);
+
   // Load chat history
   useEffect(() => {
     const loadHistory = async () => {
@@ -67,14 +124,14 @@ export default function PdfChat({ documentId }: PdfChatProps) {
             'x-user-id': session?.user?.id || '',
           },
         });
-        
+
         if (!response.ok) {
           const error = await response.json();
           throw new Error(error.error || 'Failed to load chat history');
         }
-        
+
         const data = await response.json();
-        
+
         // Check if data is an array (direct chat history)
         if (Array.isArray(data)) {
           const formattedHistory = data.map((msg: ServerMessage) => ({
@@ -119,6 +176,16 @@ export default function PdfChat({ documentId }: PdfChatProps) {
 
     setLoading(true);
 
+    // Update memory immediately with the newest prompt.
+    if (savedMemory) {
+      const nextMemory: UserLongTermMemory = {
+        ...savedMemory,
+        previousPrompts: updatePromptMemory(savedMemory.previousPrompts, content),
+      };
+      setSavedMemory(nextMemory);
+      saveLongTermMemory(session.user.id, documentId, nextMemory);
+    }
+
     try {
       const response = await fetch(`/api/pdf/${documentId}/chat`, {
         method: 'POST',
@@ -136,9 +203,9 @@ export default function PdfChat({ documentId }: PdfChatProps) {
       }
 
       const data = await response.json();
-      
+
       const chatHistory = Array.isArray(data) ? data : data.chatHistory;
-      
+
       if (chatHistory) {
         const formattedHistory = chatHistory.map((msg: ServerMessage) => ({
           ...msg,
@@ -146,6 +213,7 @@ export default function PdfChat({ documentId }: PdfChatProps) {
           sourcePages: msg.sourcePages || []
         }));
         setMessages(formattedHistory);
+        setDraftPrompt('');
       } else {
         console.error('Invalid chat response format:', data);
         toast({
@@ -200,6 +268,14 @@ export default function PdfChat({ documentId }: PdfChatProps) {
         </Button>
       </div>
 
+      {/* Lightweight memory summary for transparency and privacy */}
+      {savedMemory && (
+        <div className="px-3 py-2 lg:px-4 text-xs text-muted-foreground border-b bg-background/70">
+          <span>Saved memory (localStorage): preferences + recent prompts.</span>
+          <span className="ml-2">Session only (sessionStorage): current draft prompt.</span>
+        </div>
+      )}
+
       {/* Content Area */}
       <div className="flex flex-1 lg:gap-4 lg:p-4 overflow-hidden">
         <div className={cn(
@@ -216,11 +292,12 @@ export default function PdfChat({ documentId }: PdfChatProps) {
             messages={messages}
             loading={loading}
             onSubmit={handleSubmit}
+            initialInput={draftPrompt}
+            autoFocusInput={savedMemory?.settings.autoFocusInput ?? true}
+            onInputChange={setDraftPrompt}
           />
         </div>
       </div>
-
-      
     </div>
   );
-} 
+}
